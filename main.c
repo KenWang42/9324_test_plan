@@ -49,14 +49,14 @@
  * 
  */
 
-// C11 std lib
+/* C11 std lib */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// SDK_12.3.0 lib
+/* SDK_12.3.0 lib */
 #include "app_uart.h"
 #include "app_error.h"
 #include "nrf_delay.h"
@@ -67,25 +67,8 @@
 #include "nrf.h"
 #include "bsp.h"
 
-//#define ENABLE_LOOPBACK_TEST  /**< if defined, then this example will be a loopback test, which means that TX should be connected to RX to get data loopback. */
-
-#define MAX_TEST_DATA_BYTES     (15U)                /**< max number of test bytes to be used for tx and rx. */
-#define UART_TX_BUF_SIZE 256                         /**< UART TX buffer size. */
-#define UART_RX_BUF_SIZE 256                         /**< UART RX buffer size. */
-
-void uart_error_handle(app_uart_evt_t * p_event)
-{
-    if (p_event->evt_type == APP_UART_COMMUNICATION_ERROR)
-    {
-        APP_ERROR_HANDLER(p_event->data.error_communication);
-    }
-    else if (p_event->evt_type == APP_UART_FIFO_ERROR)
-    {
-        APP_ERROR_HANDLER(p_event->data.error_code);
-    }
-}
-
-
+/* SX9324 interface */
+#include "9324_LIB.h"
 
 #ifdef ENABLE_LOOPBACK_TEST
 /** @brief Function for setting the @ref ERROR_PIN high, and then enter an infinite loop.
@@ -136,58 +119,37 @@ static void uart_loopback_test()
  */
 int main(void)
 {
-    uint32_t err_code;
-
-    bsp_board_leds_init();
-
-    const app_uart_comm_params_t comm_params =
-      {
-          RX_PIN_NUMBER,
-          TX_PIN_NUMBER,
-          RTS_PIN_NUMBER,
-          CTS_PIN_NUMBER,
-          APP_UART_FLOW_CONTROL_ENABLED,
-          false,
-          UART_BAUDRATE_BAUDRATE_Baud115200
-      };
-
-    APP_UART_FIFO_INIT(&comm_params,
-                         UART_RX_BUF_SIZE,
-                         UART_TX_BUF_SIZE,
-                         uart_error_handle,
-                         APP_IRQ_PRIORITY_LOWEST,
-                         err_code);
-
-    APP_ERROR_CHECK(err_code);
-
-#ifndef ENABLE_LOOPBACK_TEST
-    printf("\r\nStart: \r\n");
-
-    while (true)
-    {
-        uint8_t cr;
-        while (app_uart_get(&cr) != NRF_SUCCESS);
-        while (app_uart_put(cr) != NRF_SUCCESS);
-			  printf("");
-
-        if (cr == 'q' || cr == 'Q')
-        {
-            printf(" \r\nExit!\r\n");
-
-            while (true)
-            {
-                // Do nothing.
-            }
-        }
-    }
-#else
-
-    // This part of the example is just for testing the loopback .
-    while (true)
-    {
-        uart_loopback_test();
-    }
-#endif
+	uart_init();
+	
+	printf("Start!\r\n");
+	
+	twi_init();
+	
+	static uint8_t data_array[10];
+	static uint16_t index = 0;
+	while(true)
+	{
+		nrf_delay_us(100);
+		uint8_t cr = NULL;
+		while(app_uart_get(&cr) != NRF_SUCCESS);
+		
+		if(strcmp((char *)data_array, "reset") == 0)
+		{
+			printf("Reset!\r\n");
+			memset(data_array, NULL, 10);
+			index = 0;
+			
+			if(SX9324_init() == true)
+				timer_set();
+			else
+				printf("Initial Error!\r\n");
+		}
+		else
+		{
+			data_array[index] = cr;
+			index++;
+		}
+	}
 }
 
 
