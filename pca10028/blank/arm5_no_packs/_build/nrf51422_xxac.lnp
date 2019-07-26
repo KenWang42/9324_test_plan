@@ -14,6 +14,7 @@
 ".\_build\nrf_assert.o"
 ".\_build\retarget.o"
 ".\_build\sdk_errors.o"
+".\_build\9324_lib.o"
 ".\_build\nrf_log_backend_serial.o"
 ".\_build\nrf_log_frontend.o"
 ".\_build\rtt_syscalls_keil.o"

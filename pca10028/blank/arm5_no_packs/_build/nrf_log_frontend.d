@@ -20,3 +20,13 @@
 .\_build\nrf_log_frontend.o: C:\Users\DELL\AppData\Local\Arm\Packs\NordicSemiconductor\nRF_DeviceFamilyPack\8.11.1\Device\Include\nrf51_bitfields.h
 .\_build\nrf_log_frontend.o: C:\Users\DELL\AppData\Local\Arm\Packs\NordicSemiconductor\nRF_DeviceFamilyPack\8.11.1\Device\Include\nrf51_deprecated.h
 .\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\util\sdk_macros.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\util\app_util_platform.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\util\nrf_assert.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\util\app_error.h
+.\_build\nrf_log_frontend.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\util\app_error_weak.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\log\nrf_log.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\log\src\nrf_log_internal.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\log\nrf_log_backend.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\log\nrf_log_ctrl.h
+.\_build\nrf_log_frontend.o: ..\..\..\..\..\..\components\libraries\log\src\nrf_log_ctrl_internal.h

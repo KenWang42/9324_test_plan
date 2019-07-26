@@ -70,53 +70,11 @@
 /* SX9324 interface */
 #include "9324_LIB.h"
 
-#ifdef ENABLE_LOOPBACK_TEST
-/** @brief Function for setting the @ref ERROR_PIN high, and then enter an infinite loop.
- */
-static void show_error(void)
-{
-
-    bsp_board_leds_on();
-    while (true)
-    {
-        // Do nothing.
-    }
-}
-
-
-/** @brief Function for testing UART loop back.
- *  @details Transmitts one character at a time to check if the data received from the loopback is same as the transmitted data.
- *  @note  @ref TX_PIN_NUMBER must be connected to @ref RX_PIN_NUMBER)
- */
-static void uart_loopback_test()
-{
-    uint8_t * tx_data = (uint8_t *)("\r\nLOOPBACK_TEST\r\n");
-    uint8_t   rx_data;
-
-    // Start sending one byte and see if you get the same
-    for (uint32_t i = 0; i < MAX_TEST_DATA_BYTES; i++)
-    {
-        uint32_t err_code;
-        while (app_uart_put(tx_data[i]) != NRF_SUCCESS);
-
-        nrf_delay_ms(10);
-        err_code = app_uart_get(&rx_data);
-
-        if ((rx_data != tx_data[i]) || (err_code != NRF_SUCCESS))
-        {
-            show_error();
-        }
-    }
-    return;
-}
-
-
-#endif
-
 
 /**
  * @brief Function for main application entry.
  */
+/*
 int main(void)
 {
 	uart_init();
@@ -151,6 +109,29 @@ int main(void)
 		}
 	}
 }
+*/
 
+volatile bool  m_xfer_done = false;
+
+int main(void){
+	APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
+	
+	NRF_LOG_INFO("\r\nTWI sensor example\r\n");
+	NRF_LOG_FLUSH();
+	twi_init();
+	
+	while(true)
+	{
+		nrf_delay_ms(500);
+		
+		do
+		{
+			__WFE();
+		}while(m_xfer_done == false);
+		
+		SX9324_read_whoami();
+		NRF_LOG_FLUSH();
+	}
+}
 
 /** @} */
