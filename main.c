@@ -139,6 +139,24 @@ uint8_t PSENSOR_INIT_REGISTERS[CMD_COUNT][2] = {
 {0x51,0x70}, {0x52,0x20}, {0x53,0x00}, {0x54,0x00}, {0x02,0x00}, {0x03,0x00}, {0x06,0x00}, {0x05,0x6F}, {0x07,0x80}, {0x08,0x01}
 };
 
+void SX9324_read_RegIrqSrc(void)
+{
+	m_xfer_done = false;
+	ret_code_t err_code;
+	
+	uint8_t reg = PSENSOER_RegIrqSrc;
+	err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, &reg, sizeof(reg), false);
+
+	APP_ERROR_CHECK(err_code);
+	while (m_xfer_done == false);
+	nrf_delay_us(100);
+	
+	printf("\r\nRead Reg_IrqSrc \r\n");
+	
+	err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
+  APP_ERROR_CHECK(err_code);
+}
+
 bool SX9324_init(void)
 {
 		ret_code_t err_code;
@@ -153,7 +171,7 @@ bool SX9324_init(void)
 //    APP_ERROR_CHECK(err_code);
 //		printf("Reset NIRQ.");
 //		nrf_delay_us(100);
-		
+		SX9324_read_RegIrqSrc();
 	  m_xfer_done = false;
 		for(int i =0; i < CMD_COUNT; i++)
 		{
@@ -218,6 +236,8 @@ void SX9324_read_DiffValue(void)
 	err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
   APP_ERROR_CHECK(err_code);
 }
+
+
 
 
 /**
