@@ -1,48 +1,8 @@
-/**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
- * 
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer.
- * 
- * 2. Redistributions in binary form, except as embedded into a Nordic
- *    Semiconductor ASA integrated circuit in a product or a software update for
- *    such product, must reproduce the above copyright notice, this list of
- *    conditions and the following disclaimer in the documentation and/or other
- *    materials provided with the distribution.
- * 
- * 3. Neither the name of Nordic Semiconductor ASA nor the names of its
- *    contributors may be used to endorse or promote products derived from this
- *    software without specific prior written permission.
- * 
- * 4. This software, with or without modification, must only be used with a
- *    Nordic Semiconductor ASA integrated circuit.
- * 
- * 5. Any software provided in binary form under this license must not be reverse
- *    engineered, decompiled, modified and/or disassembled.
- * 
- * THIS SOFTWARE IS PROVIDED BY NORDIC SEMICONDUCTOR ASA "AS IS" AND ANY EXPRESS
- * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL NORDIC SEMICONDUCTOR ASA OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
- * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- */
-
 /** @file
- * @defgroup uart_e9324_main main.c
+ * @defgroup uart_9324_main main.c
  * @{
  * @ingroup uart_9324
- * @brief main file of SX9324 testing function
+ * @brief main file of SX9324 test plan
  *
  * The file contains requirement set-up for each register of SX9324
  * Also, contains functions for testing procedure
@@ -67,71 +27,320 @@
 #include "nrf.h"
 #include "bsp.h"
 
+/* LOG */
+#define NRF_LOG_MODULE_NAME "APP"
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+
+
 /* SX9324 interface */
-#include "9324_LIB.h"
+//#include "9324_LIB.h"
+
+/* UART */
+#define MAX_TEST_DATA_BYTES     (15U)                /**< max number of test bytes to be used for tx and rx. */
+#define UART_TX_BUF_SIZE 256                         /**< UART TX buffer size. */
+#define UART_RX_BUF_SIZE 256                         /**< UART RX buffer size. */
+
+/* TWI */
+#define PSENSOR_SCL_PIN             6    // SCL signal pin
+#define PSENSOR_SDA_PIN             5    // SDA signal pin
+#define PSENSOR_ADDR          	    0x28U
+
+/* GPIO */
+#define LED_WHITE      1
+#define LED_ORANGEE    2
+
+/* TWI Instance ID */
+#define TWI_INSTANCE_ID 0
+
+/* Register*/
+#define PSENSOR_RegDIffMsb 0x65
+#define PSENSOR_RegDIffLsb 0x66
+#define PSENSOR_RegWhoAmI  0xFA
+
+/*Indicate if opreation on TWI has ended*/
+static volatile bool  m_xfer_done = false;
+
+/* TWI instance */
+static const nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(TWI_INSTANCE_ID);
+
+/* Buffer for samples read */
+static uint8_t  m_sample[2];
+//static uint8_t  m_buffer;
+
+/* Timer */
+static const nrf_drv_timer_t Sensor_Timer = NRF_DRV_TIMER_INSTANCE(0);
+
 
 
 /**
- * @brief Function for main application entry.
+ * @brief UART error handle
  */
-/*
+void uart_error_handle(app_uart_evt_t * p_event)
+{
+    if (p_event->evt_type == APP_UART_COMMUNICATION_ERROR)
+    {
+        APP_ERROR_HANDLER(p_event->data.error_communication);
+    }
+    else if (p_event->evt_type == APP_UART_FIFO_ERROR)
+    {
+        APP_ERROR_HANDLER(p_event->data.error_code);
+    }
+}
+
+
+/**
+ * @brief TWI events handler.
+ */
+void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
+{
+    switch (p_event->type)
+    {
+        case NRF_DRV_TWI_EVT_DONE:
+            if (p_event->xfer_desc.type == NRF_DRV_TWI_XFER_RX)
+            {
+               // data_handler(m_sample);
+							 int16_t value ;
+							 if((m_sample[0] >> 4) == 1)
+							 {
+								 //printf("nnn--%x%x  ",m_sample[0],m_sample[1]);
+								 int16_t nData = (((int16_t)m_sample[0] << 8) | (int16_t)m_sample[1]) & 0x0FFF;
+
+								 // negaitive
+								  value = nData - 0x0FFF - 1 ;
+							 }
+							 else
+							 {
+								 value = ((uint16_t)m_sample[0] << 8) | (uint16_t)m_sample[1];
+							 }
+							
+							 printf("Value: %d\r\n",value);
+            }
+            m_xfer_done = true;
+            break;
+        default:
+            break;
+    }
+}
+
+
+/**
+ * @brief Function for setting SX9324 register with proper value
+ */
+
+#define CMD_COUNT 51
+#define PSENSOER_RegIrqSrc 0x00
+uint8_t PSENSOR_INIT_REGISTERS[CMD_COUNT][2] = {
+{0x00,0x00},
+{0x10,0x0A}, {0x11,0x26}, {0x14,0x00}, {0x15,0x00}, {0x20,0x20}, {0x23,0x00}, {0x24,0x47}, {0x26,0x00}, {0x27,0x47}, {0x28,0x37}, 
+{0x29,0x37}, {0x2A,0x1F}, {0x2B,0x3D}, {0x2C,0x12}, {0x2D,0x08}, {0x30,0x09}, {0x31,0x09}, {0x32,0x20}, {0x33,0x20}, {0x34,0x0C}, 
+{0x35,0x00}, {0x36,0x59}, {0x37,0x59}, {0x40,0x00}, {0x41,0x00}, {0x42,0x00}, {0x43,0x00}, {0x44,0x00}, {0x45,0x05}, {0x46,0x00}, 
+{0x47,0x00}, {0x48,0x00}, {0x49,0x00}, {0x4A,0x33}, {0x4B,0x31}, {0x4C,0x31}, {0x4D,0x00}, {0x4E,0x80}, {0x4F,0x0C}, {0x50,0x14}, 
+{0x51,0x70}, {0x52,0x20}, {0x53,0x00}, {0x54,0x00}, {0x02,0x00}, {0x03,0x00}, {0x06,0x00}, {0x05,0x6F}, {0x07,0x80}, {0x08,0x01}
+};
+
+bool SX9324_init(void)
+{
+		ret_code_t err_code;
+		int count = 0;
+		int TimeOutCount = 2; // 1 sec
+	  
+	  // Read Register 0x00 to clear NIRQ
+//	  uint8_t reg = PSENSOER_RegIrqSrc;
+//	  err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, &reg, 1, true);
+//		if (NRF_SUCCESS == err_code)
+//				err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
+//    APP_ERROR_CHECK(err_code);
+//		printf("Reset NIRQ.");
+//		nrf_delay_us(100);
+		
+	  m_xfer_done = false;
+		for(int i =0; i < CMD_COUNT; i++)
+		{
+			printf("\r\ntx reg 0x%x\r\n", PSENSOR_INIT_REGISTERS[i][0]);
+			err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, PSENSOR_INIT_REGISTERS[i],sizeof(PSENSOR_INIT_REGISTERS[i]), false);
+			APP_ERROR_CHECK(err_code);
+			while (m_xfer_done == false)
+			{
+				count++;
+				nrf_delay_ms(500);
+				
+				if(count >= TimeOutCount)
+				{
+				  printf("\r\nTime Out\r\n");
+					return false;
+				}
+			}
+			nrf_delay_us(100);
+		}
+		
+		nrf_delay_us(100);
+		printf("\r\nSX9324 Initialized.\r\n");
+		return true;
+	
+}
+
+void SX9324_read_whoami()
+{
+	m_xfer_done = false;
+	ret_code_t err_code;
+	uint8_t reg = PSENSOR_RegWhoAmI;
+	
+	err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, &reg, sizeof(reg), false);
+
+	APP_ERROR_CHECK(err_code);
+	while (m_xfer_done == false);
+	nrf_delay_us(100);
+	
+	printf("\r\nRead who am I\r\n");
+	
+	err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
+  APP_ERROR_CHECK(err_code);
+}
+
+/**
+ * @brief read value from PSENSOR_RegDIffVal
+ */
+void SX9324_read_DiffValue(void)
+{
+	m_xfer_done = false;
+	ret_code_t err_code;
+	
+	uint8_t reg = PSENSOR_RegDIffLsb;
+	err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, &reg, sizeof(reg), false);
+
+	APP_ERROR_CHECK(err_code);
+	while (m_xfer_done == false);
+	nrf_delay_us(100);
+	
+	printf("\r\nRead Differential Value: \r\n");
+	
+	err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
+  APP_ERROR_CHECK(err_code);
+}
+
+
+/**
+ * @brief Handler for timer events.
+ */
+void timer_event_handler(nrf_timer_event_t event_type, void* p_context)
+{
+    switch (event_type)
+    {
+        case NRF_TIMER_EVENT_COMPARE0:
+						do
+						{
+						}while (m_xfer_done == false);
+						SX9324_read_DiffValue();
+            break;
+
+        default:
+            break;
+    }
+}
+
+
+
+
+
+/**
+ * @brief UART initailize
+ */
+void uart_init()
+{
+	uint32_t err_code;
+	const app_uart_comm_params_t comm_params =
+		{
+				RX_PIN_NUMBER,
+				TX_PIN_NUMBER,
+				RTS_PIN_NUMBER,
+				CTS_PIN_NUMBER,
+				APP_UART_FLOW_CONTROL_ENABLED,
+				false,
+				UART_BAUDRATE_BAUDRATE_Baud115200
+		};
+
+	APP_UART_FIFO_INIT(&comm_params,
+											 UART_RX_BUF_SIZE,
+											 UART_TX_BUF_SIZE,
+											 uart_error_handle,
+											 APP_IRQ_PRIORITY_LOW,
+											 err_code);
+
+  APP_ERROR_CHECK(err_code);
+  printf("\r\n UART initialized. \r\n");
+}
+
+
+/**
+ * @brief TWI initailize
+ */
+void twi_init ()
+{
+    ret_code_t err_code;
+
+    const nrf_drv_twi_config_t twi_psensor_config = {
+       .scl                = PSENSOR_SCL_PIN,
+       .sda                = PSENSOR_SDA_PIN,
+       .frequency          = NRF_TWI_FREQ_400K,
+       .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
+       .clear_bus_init     = false
+    };
+
+    err_code = nrf_drv_twi_init(&m_twi, &twi_psensor_config, twi_handler, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_twi_enable(&m_twi);
+	  printf("\r\nTWI Initialized\r\n");
+}
+
+
+/**
+ * @brief Timer initailize
+ */
+void timer_init()
+{
+	  uint32_t time_ms = 1000; //Time(in miliseconds) between events.
+    uint32_t time_ticks;
+    uint32_t err_code = NRF_SUCCESS;
+	 
+	  nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
+    err_code = nrf_drv_timer_init(&Sensor_Timer, &timer_cfg, timer_event_handler);
+    APP_ERROR_CHECK(err_code);
+
+    time_ticks = nrf_drv_timer_ms_to_ticks(&Sensor_Timer, time_ms);
+
+    nrf_drv_timer_extended_compare(
+         &Sensor_Timer, NRF_TIMER_CC_CHANNEL0, time_ticks, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
+
+    nrf_drv_timer_enable(&Sensor_Timer);
+	  printf("\r\nTimer Initialized.\r\n");
+}
+
+
 int main(void)
 {
-	uart_init();
+    LEDS_CONFIGURE(LEDS_MASK);
+    LEDS_OFF(LEDS_MASK);
+
+		uart_init();
+	  twi_init();
+		timer_init();
+		printf("\r\nStart Test\r\n");
+    SX9324_init();
 	
-	printf("Start!\r\n");
-	
-	twi_init();
-	
-	static uint8_t data_array[10];
-	static uint16_t index = 0;
+	nrf_gpio_cfg_output(LED_WHITE);
+	nrf_gpio_pin_clear(LED_WHITE);
+	nrf_gpio_cfg_output(LED_ORANGEE);
+	nrf_gpio_pin_clear(LED_ORANGEE);
 	while(true)
 	{
-		nrf_delay_us(100);
-		uint8_t cr = NULL;
-		while(app_uart_get(&cr) != NRF_SUCCESS);
-		
-		if(strcmp((char *)data_array, "reset") == 0)
-		{
-			printf("Reset!\r\n");
-			memset(data_array, NULL, 10);
-			index = 0;
-			
-			if(SX9324_init() == true)
-				timer_set();
-			else
-				printf("Initial Error!\r\n");
-		}
-		else
-		{
-			data_array[index] = cr;
-			index++;
-		}
+		printf("\r\n Lights Switch \r\n");
+		nrf_gpio_pin_toggle(LED_ORANGEE);
+		nrf_delay_ms(1000);
+		nrf_gpio_pin_toggle(LED_WHITE);
 	}
-}
-*/
-
-volatile bool  m_xfer_done = false;
-
-int main(void){
-	APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
 	
-	NRF_LOG_INFO("\r\nTWI sensor example\r\n");
-	NRF_LOG_FLUSH();
-	twi_init();
-	
-	while(true)
-	{
-		nrf_delay_ms(500);
-		
-		do
-		{
-			__WFE();
-		}while(m_xfer_done == false);
-		
-		SX9324_read_whoami();
-		NRF_LOG_FLUSH();
-	}
 }
 
 /** @} */

@@ -477,11 +477,6 @@
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\components\libraries\util\sdk_errors.c</FilePath>
             </File>
-            <File>
-              <FileName>9324_LIB.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\9324\9324_LIB.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
