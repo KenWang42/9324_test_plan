@@ -55,7 +55,7 @@
 
 /* Register*/
 #define PSENSOR_RegDIffMsb 0x65
-#define PSENSOR_RegDIffLsb 0x66
+#define PSENSOR_RegUseMsb 0x61
 #define PSENSOR_RegWhoAmI  0xFA
 
 /*Indicate if opreation on TWI has ended*/
@@ -128,10 +128,9 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
  * @brief Function for setting SX9324 register with proper value
  */
 
-#define CMD_COUNT 51
+#define CMD_COUNT 50
 #define PSENSOER_RegIrqSrc 0x00
 uint8_t PSENSOR_INIT_REGISTERS[CMD_COUNT][2] = {
-{0x00,0x00},
 {0x10,0x0A}, {0x11,0x26}, {0x14,0x00}, {0x15,0x00}, {0x20,0x20}, {0x23,0x00}, {0x24,0x47}, {0x26,0x00}, {0x27,0x47}, {0x28,0x37}, 
 {0x29,0x37}, {0x2A,0x1F}, {0x2B,0x3D}, {0x2C,0x12}, {0x2D,0x08}, {0x30,0x09}, {0x31,0x09}, {0x32,0x20}, {0x33,0x20}, {0x34,0x0C}, 
 {0x35,0x00}, {0x36,0x59}, {0x37,0x59}, {0x40,0x00}, {0x41,0x00}, {0x42,0x00}, {0x43,0x00}, {0x44,0x00}, {0x45,0x05}, {0x46,0x00}, 
@@ -163,19 +162,13 @@ bool SX9324_init(void)
 		int count = 0;
 		int TimeOutCount = 2; // 1 sec
 	  
-	  // Read Register 0x00 to clear NIRQ
-//	  uint8_t reg = PSENSOER_RegIrqSrc;
-//	  err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, &reg, 1, true);
-//		if (NRF_SUCCESS == err_code)
-//				err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
-//    APP_ERROR_CHECK(err_code);
-//		printf("Reset NIRQ.");
-//		nrf_delay_us(100);
 		SX9324_read_RegIrqSrc();
+	  nrf_delay_ms(500);
+	  
 	  m_xfer_done = false;
 		for(int i =0; i < CMD_COUNT; i++)
 		{
-			printf("\r\ntx reg 0x%x\r\n", PSENSOR_INIT_REGISTERS[i][0]);
+			//printf("\r\ntx reg 0x%x\r\n", PSENSOR_INIT_REGISTERS[i][0]);
 			err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, PSENSOR_INIT_REGISTERS[i],sizeof(PSENSOR_INIT_REGISTERS[i]), false);
 			APP_ERROR_CHECK(err_code);
 			while (m_xfer_done == false)
@@ -192,10 +185,40 @@ bool SX9324_init(void)
 			nrf_delay_us(100);
 		}
 		
+		/*set bit 4 of 0x00 to 1: Calibration*/
+		uint8_t CALIBRATION[2] = {0x00,0x10};
+		err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, CALIBRATION,sizeof(CALIBRATION), false);
 		nrf_delay_us(100);
+		
+		/*Set PH2 to RegDiff*/
+	  uint8_t RegPhaseSel[2] = {0x60,0x02};
+		err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, RegPhaseSel,sizeof(RegPhaseSel), false);
+		nrf_delay_us(100);
+		
+		
 		printf("\r\nSX9324 Initialized.\r\n");
 		return true;
+}
+
+/**
+ * @brief read value from PSENSOR_RegDIffVal
+ */
+void SX9324_read_DiffValue(void)
+{
+	m_xfer_done = false;
+	ret_code_t err_code;
 	
+	uint8_t reg = PSENSOR_RegDIffMsb;
+	err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, &reg, sizeof(reg), false);
+
+	APP_ERROR_CHECK(err_code);
+	while (m_xfer_done == false);
+	nrf_delay_us(100);
+	
+	printf("\r\nRead Differential Value: \r\n");
+	
+	err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
+  APP_ERROR_CHECK(err_code);
 }
 
 void SX9324_read_whoami()
@@ -215,53 +238,6 @@ void SX9324_read_whoami()
 	err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
   APP_ERROR_CHECK(err_code);
 }
-
-/**
- * @brief read value from PSENSOR_RegDIffVal
- */
-void SX9324_read_DiffValue(void)
-{
-	m_xfer_done = false;
-	ret_code_t err_code;
-	
-	uint8_t reg = PSENSOR_RegDIffLsb;
-	err_code = nrf_drv_twi_tx(&m_twi, PSENSOR_ADDR, &reg, sizeof(reg), false);
-
-	APP_ERROR_CHECK(err_code);
-	while (m_xfer_done == false);
-	nrf_delay_us(100);
-	
-	printf("\r\nRead Differential Value: \r\n");
-	
-	err_code = nrf_drv_twi_rx(&m_twi, PSENSOR_ADDR, m_sample, sizeof(m_sample));
-  APP_ERROR_CHECK(err_code);
-}
-
-
-
-
-/**
- * @brief Handler for timer events.
- */
-void timer_event_handler(nrf_timer_event_t event_type, void* p_context)
-{
-    switch (event_type)
-    {
-        case NRF_TIMER_EVENT_COMPARE0:
-						do
-						{
-						}while (m_xfer_done == false);
-						SX9324_read_DiffValue();
-            break;
-
-        default:
-            break;
-    }
-}
-
-
-
-
 
 /**
  * @brief UART initailize
@@ -314,6 +290,25 @@ void twi_init ()
 	  printf("\r\nTWI Initialized\r\n");
 }
 
+/**
+ * @brief Handler for timer events.
+ */
+void timer_event_handler(nrf_timer_event_t event_type, void* p_context)
+{
+    switch (event_type)
+    {
+        case NRF_TIMER_EVENT_COMPARE0:
+						do
+						{
+						}while (m_xfer_done == false);
+						SX9324_read_DiffValue();
+            break;
+
+        default:
+            break;
+    }
+}
+
 
 /**
  * @brief Timer initailize
@@ -340,14 +335,14 @@ void timer_init()
 
 int main(void)
 {
-    LEDS_CONFIGURE(LEDS_MASK);
-    LEDS_OFF(LEDS_MASK);
+	LEDS_CONFIGURE(LEDS_MASK);
+	LEDS_OFF(LEDS_MASK);
 
-		uart_init();
-	  twi_init();
-		timer_init();
-		printf("\r\nStart Test\r\n");
-    SX9324_init();
+	uart_init();
+	twi_init();
+	timer_init();
+	printf("\r\nStart Test\r\n");
+	SX9324_init();
 	
 	nrf_gpio_cfg_output(LED_WHITE);
 	nrf_gpio_pin_clear(LED_WHITE);
