@@ -275,12 +275,9 @@ void twi_init ()
 
 int main(void)
 {
-//	LEDS_CONFIGURE(LEDS_MASK);
-//	LEDS_OFF(LEDS_MASK);
-
 	uart_init();
 	twi_init();
-	// timer_init();
+
 	printf("\r\nStart Test\r\n");
 	
 	SX9324_init();
