@@ -48,7 +48,7 @@
 
 /* GPIO */
 #define LED_WHITE      1
-#define LED_ORANGEE    2
+#define LED_ORANGE    2
 
 /*TWI Instance ID*/
 #define TWI_INSTANCE_ID 0
@@ -164,12 +164,29 @@ void uart_event_handler(app_uart_evt_t * p_event)
 	  if (p_event->evt_type == APP_UART_DATA_READY)
     {
 			app_uart_get(&cr);
-			printf("%c", cr);
-			if (cr=='r' || cr=='R')
+			
+			if (cr == 'r' || cr == 'R')
 			{
 				NVIC_SystemReset();
 			}
-		}
+
+			if (cr == 'o' || cr == 'O')
+			{
+			    printf("\r\nOrange Light\r\n");
+				nrf_gpio_pin_clear(LED_ORANGE);
+				nrf_gpio_pin_set(LED_WHITE);
+				nrf_delay_ms(100);
+			}
+
+			if (cr == 'w' || cr == 'W')
+			{
+			    printf("\r\nWhite Light\r\n");
+				nrf_gpio_pin_clear(LED_WHITE);
+				nrf_gpio_pin_set(LED_ORANGE);
+				nrf_delay_ms(100);
+			}
+
+	}
     else if (p_event->evt_type == APP_UART_COMMUNICATION_ERROR)
     {
         APP_ERROR_HANDLER(p_event->data.error_communication);
@@ -281,38 +298,29 @@ int main(void)
 	printf("\r\nStart Test\r\n");
 	
 	SX9324_init();
-	
+	/*Set up LED*/
 	nrf_gpio_cfg_output(LED_WHITE);
 	nrf_gpio_pin_set(LED_WHITE);
-	nrf_gpio_cfg_output(LED_ORANGEE);
-	nrf_gpio_pin_set(LED_ORANGEE);
+	nrf_gpio_cfg_output(LED_ORANGE);
+	nrf_gpio_pin_set(LED_ORANGE);
 	
-	nrf_delay_ms(1000);
+	nrf_delay_ms(100);
 	
 	IS_DIFF = true;
 	printf("\r\nRead Phase 1\r\n");
 	SX9324_set_phase(PHASE_1);
 	for(int i = 0; i < 10; i++){
 		SX9324_read_Reg(PSENSOR_RegDIffMsb);
-		nrf_delay_ms(100);
+		nrf_delay_ms(50);
 	}
 	
 	printf("\r\nRead Phase 2\r\n");
 	SX9324_set_phase(PHASE_2);
 	for(int i = 0; i < 10; i++){
 		SX9324_read_Reg(PSENSOR_RegDIffMsb);
-		nrf_delay_ms(100);
+		nrf_delay_ms(50);
 	}
 	IS_DIFF = false;
-	
-	printf("\r\nWhite Light\r\n");
-	nrf_gpio_pin_toggle(LED_ORANGEE);
-	nrf_delay_ms(1000);
-
-	printf("\r\nOrange Light\r\n");
-	nrf_gpio_pin_toggle(LED_ORANGEE);
-	nrf_gpio_pin_toggle(LED_WHITE);
-	nrf_delay_ms(1000);
 
 	printf("\r\nEnd Test\r\n");
 	for (int i = 0; i < 20; i++){
